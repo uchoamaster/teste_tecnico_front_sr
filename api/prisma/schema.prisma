@@ -1,0 +1,118 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  CRIADA
+  PLANEJADA
+  AGENDADA
+  EM_TRANSPORTE
+  ENTREGUE
+}
+
+enum UserRole {
+  ADMIN
+  OPERATOR
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  displayName  String
+  passwordHash String
+  refreshTokenHash String?
+  role         UserRole
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Client {
+  id                       String                @id @default(cuid())
+  code                     String                @unique
+  name                     String
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+  authorizedTransportTypes ClientTransportType[]
+  salesOrders              SalesOrder[]
+}
+
+model TransportType {
+  id              String                @id @default(cuid())
+  name            String                @unique
+  description     String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  authorizedFor   ClientTransportType[]
+  salesOrders     SalesOrder[]
+}
+
+model ClientTransportType {
+  clientId        String
+  transportTypeId String
+  assignedAt      DateTime      @default(now())
+  client          Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  transportType   TransportType @relation(fields: [transportTypeId], references: [id], onDelete: Cascade)
+
+  @@id([clientId, transportTypeId])
+}
+
+model Item {
+  id               String           @id @default(cuid())
+  sku              String           @unique
+  name             String
+  description      String?
+  unitOfMeasure    String
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  salesOrderItems  SalesOrderItem[]
+}
+
+model SalesOrder {
+  id                 String           @id @default(cuid())
+  code               String           @unique
+  clientId           String
+  transportTypeId    String
+  status             OrderStatus      @default(CRIADA)
+  deliveryDate       DateTime?
+  serviceWindowStart String?
+  serviceWindowEnd   String?
+  schedulingConfirmed Boolean         @default(false)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  client             Client           @relation(fields: [clientId], references: [id])
+  transportType      TransportType    @relation(fields: [transportTypeId], references: [id])
+  items              SalesOrderItem[]
+  auditEvents        AuditEvent[]
+}
+
+model SalesOrderItem {
+  salesOrderId String
+  itemId       String
+  quantity     Int
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  item         Item       @relation(fields: [itemId], references: [id])
+
+  @@id([salesOrderId, itemId])
+}
+
+model AuditEvent {
+  id            String      @id @default(cuid())
+  entityType    String
+  entityId      String
+  action        String
+  previousState Json?
+  nextState     Json?
+  createdAt     DateTime    @default(now())
+  salesOrderId  String?
+  salesOrder    SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+}
